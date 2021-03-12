@@ -21,7 +21,7 @@ library(tidyverse); library(magrittr)
 
 ## Data Read In ----
 `%nin%` <- Negate(`%in%`)
-source('~/Documents/Research/Current/MetaboGuru/Carpenter/RCode/PerfectNewtorkSimulations/PerfectNetworkSimFunctions.R')
+source('PerfectNetworkSimFunctions.R')
 
 nsim <- 1000  ## number of simulations
 nperm <- 1000 ## number of permutation for score test

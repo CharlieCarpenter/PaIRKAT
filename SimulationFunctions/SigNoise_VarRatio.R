@@ -19,7 +19,7 @@
 
 # Helpful functions
 `%nin%` <- Negate(`%in%`)
-source("SimulationFunctions.R")
+source("PaIRKAT/helpers.R")
 
 ## network simulation functions
 source('CompleteMismatchSimFunctions.R')

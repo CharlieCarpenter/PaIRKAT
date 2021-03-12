@@ -15,12 +15,7 @@
 ##
 ## ---------------------------
 
-# Helpful functions
-`%nin%` <- Negate(`%in%`)
-pkgs <- c("tidyverse", "magrittr", "igraph", "matrixcalc",
-          "MASS", "diffusr", "Matrix", "KEGGREST")
-
-suppressMessages(lapply(pkgs, library, character.only = T))
+source('helpers.R')
 
 # Example -----------------------------------------------------------------
 
@@ -55,24 +50,24 @@ suppressMessages(lapply(pkgs, library, character.only = T))
 # mm <- model.matrix(X, data = clinDat)
 
 ## Results set up
-npath <- nrow(nets$pdat$testPaths)
-pKat.rslt <- data.frame(Pathway = character(npath),
-                        `Pathway Size` = numeric(npath),
-                        `Score Statistic` = numeric(npath),
-                        pValue = numeric(npath))
-
-## Running PaIRKAT
-for (i in 1:npath) {
-  z <- PaIRKAT(G = nets$networks[[i]],
-               out.type = "C", # for continuous (or D for dichotomous)
-               Y = Y, model = mm,
-               tau = 1, metab = metabDat)
-
-  pKat.rslt[i,] <- c(nets$pdat$testPaths$pathwayNames[i],
-                     nets$pdat$testPaths$inpathway[i],
-                     z['Q'], z['pVal'])
-}
-
-pKat.rslt$pValueFDR <- p.adjust(pKat.rslt$pValue, method = "BH")
+# npath <- nrow(nets$pdat$testPaths)
+# pKat.rslt <- data.frame(Pathway = character(npath),
+#                         `Pathway Size` = numeric(npath),
+#                         `Score Statistic` = numeric(npath),
+#                         pValue = numeric(npath))
+# 
+# ## Running PaIRKAT
+# for (i in 1:npath) {
+#   z <- PaIRKAT(G = nets$networks[[i]],
+#                out.type = "C", # for continuous (or D for dichotomous)
+#                Y = Y, model = mm,
+#                tau = 1, metab = metabDat)
+# 
+#   pKat.rslt[i,] <- c(nets$pdat$testPaths$pathwayNames[i],
+#                      nets$pdat$testPaths$inpathway[i],
+#                      z['Q'], z['pVal'])
+# }
+# 
+# pKat.rslt$pValueFDR <- p.adjust(pKat.rslt$pValue, method = "BH")
 
 

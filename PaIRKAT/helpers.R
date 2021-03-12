@@ -18,6 +18,10 @@
 
 # Helpful functions
 `%nin%` <- Negate(`%in%`)
+pkgs <- c("tidyverse", "magrittr", "igraph", "matrixcalc",
+          "MASS", "diffusr", "Matrix", "KEGGREST")
+
+suppressMessages(lapply(pkgs, library, character.only = T))
 
 ########## Data Set Up #############
 
@@ -219,3 +223,34 @@ kernelScoreD <- function(K, Y, X){
 
 ## Trace of a matrix
 tr <- function(x) sum(diag(x))
+
+## Functions for simulation
+
+## Making pos def matrix for sim functions
+Danaher_pos_def <- function(m, cc = 3.4, dd = 0.95){
+  AA <- m*cc + t(m*cc)
+  AA[AA>0] <- 1
+  AA <- AA-diag(diag(AA))+diag(nrow(m))*dd
+  AA <- AA/( as.matrix(rep(1,nrow(m))) ) %*% t(1.4*rowSums(abs(AA)))
+  AA <- (AA+t(AA))/2
+  AA <- AA-diag(diag(AA))+diag(nrow(m))*dd
+  AA
+}
+
+## 
+CC_Chisq_Score <- function(K, Y, mX, out.type = "C"){
+  ## Projection matrix
+  P <- diag(nrow(mX)) - mX%*%solve(t(mX)%*%mX)%*%t(mX) 
+  R <- P%*%Y ## Residual
+  
+  s2 <- sum(R^2)/(nrow(mX) - ncol(mX)) ## MSE = SS/rdf
+  sc <- ( t(R)%*%K%*%R )/(2*s2)
+  s_chi <- scaleChi(P, K)
+  
+  Q <- sc/s_chi['ka'] ## Scaled chisq stat
+  pVal <- pchisq(Q, df = s_chi['nu'], lower.tail = FALSE)
+  
+  c(Q = Q, pVal = pVal, s_chi['ka'], s_chi['nu'])
+}
+
+

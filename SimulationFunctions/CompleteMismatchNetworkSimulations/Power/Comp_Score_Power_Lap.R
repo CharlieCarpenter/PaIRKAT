@@ -18,7 +18,7 @@
 # Helpful Functions -------------------------------------------------------
 
 `%nin%` <- Negate(`%in%`)
-source('~/Documents/Research/Current/MetaboGuru/Carpenter/RCode/CompleteMismatchNetworkSimulations/CompleteMismatchSimFunctions.R')
+source('CompleteMismatchSimFunctions.R')
 
 nsim <- 1000  ## number of simulations
 nperm <- 1000 ## number of permutation for score test
