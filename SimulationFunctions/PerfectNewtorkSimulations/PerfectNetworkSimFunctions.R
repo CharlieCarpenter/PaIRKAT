@@ -18,8 +18,9 @@
 
 # source("PaIRKAT/helpers.R")
 
-Perf_Scor_SameSize <- function(graph, mX, b0, sd.y, zz, delta,
-                               rho = "median.pairwise", include.network = "R"){
+Perf_Davie_SameSize <- function(graph, H0.form, data,
+                                b0, sd.y, zz, tau, kernel = "G",
+                                rho = "median.pairwise", include.network = "R"){
   
   ## Converts a graph into an adjacency matrix
   A <- as.matrix( get.adjacency(graph) )
@@ -35,30 +36,36 @@ Perf_Scor_SameSize <- function(graph, mX, b0, sd.y, zz, delta,
   pd <- is.positive.definite(Omega1)
   if(pd){
     ## Outcome and model.matrix
+    mX <- as.matrix(cbind(1, data))
     Z <- mvrnorm(n=nrow(mX), rep(0,p), solve(Omega1))
     Y <- rnorm(n=nrow(mX), mX%*%b0+Z%*%zz, sd.y)
     V.Y <- var(mX%*%b0+Z%*%zz); V.e <- var(Y - mX%*%b0+Z%*%zz)
     
+    dd <- cbind(Y, data)
     L_tilda <- graph.laplacian(graph, normalized = T) %>% as.matrix
     
-    if(include.network == "R") K_regL <- solve(diag(p) + delta*L_tilda)
+    if(include.network == "R") K_regL <- solve(diag(p) + tau*L_tilda)
     if(include.network == "L") K_regL <- L_tilda
     
     Z <- scale(Z); ZL <- Z %*% K_regL
     if(rho == "median.pairwise") rho <- median(dist(Z))
     
-    K <- Gaussian_kernel(rho, ZL)
-    sc <- CC_Chisq_Score(K, Y, mX)
-    } else{
-      sc <- V.Y <- V.e <- NA
-      }
-  c(sc, edge_density1 = edge_density(graph),
+    if(kernel == "G") K <- Gaussian_kernel(rho, ZL)
+    if(kernel == "L") K <- plyKern(ZL, pow = 1, rho = 0)
+    
+    dav_pval <- SKAT.c(H0.form, data = dd, K=K)$Qq
+    
+  } else{
+    dav_pval <- V.Y <- V.e <- NA
+  }
+  c(pVal = dav_pval, edge_density1 = edge_density(graph),
     V.Y = V.Y, V.e = V.e,
     total_edge_n = total_edge_n, pos_def = pd)
 }
 
-Perf_Scor_SmallGraph <- function(graph, mX, b0, sd.y, zz, delta,
-                                 rho = "median.pairwise", include.network = "R"){
+Perf_Davie_SmallGraph <- function(graph, H0.form, data,
+                                  b0, sd.y, zz, tau, kernel = "G",
+                                  rho = "median.pairwise", include.network = "R"){
   ## Converts a graph into an adjacency matrix
   A <- as.matrix( get.adjacency(graph) )
   p <- nrow(A); total_edge_n <- sum(A==1)
@@ -72,10 +79,12 @@ Perf_Scor_SmallGraph <- function(graph, mX, b0, sd.y, zz, delta,
   pd <- is.positive.definite(Omega1)
   if(pd){
     ## Outcome and model.matrix
+    mX <- as.matrix(cbind(1, data))
     Z <- mvrnorm(n=nrow(mX), rep(0,p), solve(Omega1))
     Y <- rnorm(n=nrow(mX), mX%*%b0+Z%*%zz, sd.y)
     V.Y <- var(mX%*%b0+Z%*%zz); V.e <- var(Y - mX%*%b0+Z%*%zz)
     
+    dd <- cbind(Y, data)
     ## Shrinking graphs
     nd <- new.degs(graph)
     As <- A[nd > 0, nd > 0]; Zs <- Z[ , nd > 0]
@@ -84,33 +93,33 @@ Perf_Scor_SmallGraph <- function(graph, mX, b0, sd.y, zz, delta,
       graph_from_adjacency_matrix(mode = "undirected") %>% 
       graph.laplacian(normalized = T) %>% as.matrix
     
-    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda)) + delta*L_tilda)
+    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda)) + tau*L_tilda)
     if(include.network == "L") K_regL <- L_tilda
     
     Zs <- scale(Zs); ZL <- Zs %*% K_regL
     if(rho == "median.pairwise") rho <- median(dist(Zs))
     
-    K <- Gaussian_kernel(rho, ZL)
-    sc <- CC_Chisq_Score(K, Y, mX)
+    if(kernel == "G") K <- Gaussian_kernel(rho, ZL)
+    if(kernel == "L") K <- plyKern(ZL, pow = 1, rho = 0)
+    
+    dav_pval <- SKAT.c(H0.form, data = dd, K=K)$Qq
+    
   } else{
-    sc <- V.Y <- V.e <- NA
+    dav_pval <- V.Y <- V.e <- NA
   }
-  c(sc, edge_density1 = edge_density(graph),
+  c(pVal = dav_pval, edge_density1 = edge_density(graph),
     V.Y = V.Y, V.e = V.e,
     total_edge_n = total_edge_n, pos_def = pd)
 }
 
-Perf_Scor_DiffDens <- function(graph, mX, b0, sd.y, zz, delta, new.edge.prob,
-                               rho = "median.pairwise", include.network = "R"){
+Perf_Davie_DiffDens <- function(graph, H0.form, data, b0, 
+                                sd.y, zz, tau, new.edge.prob,
+                                kernel = "G",
+                                rho = "median.pairwise", include.network = "R"){
   ## Converts a graph into an adjacency matrix
   A <- as.matrix( get.adjacency(graph) )
   p <- nrow(A); total_edge_n <- sum(A==1)
   A_big <- increase.edge.density(A, edge.prob = new.edge.prob)
-  
-  ## Changing graph to new density from adj matrix
-  graph <- A_big %>% 
-    graph_from_adjacency_matrix(mode = "undirected")
-  new.edge.density <- edge_density(graph)
   
   ## Convert adjacency matrix into a "starter" precision matrix
   test <- A_big + diag(p)
@@ -121,43 +130,47 @@ Perf_Scor_DiffDens <- function(graph, mX, b0, sd.y, zz, delta, new.edge.prob,
   pd <- is.positive.definite(Omega1)
   if(pd){
     ## Outcome and model.matrix
+    mX <- as.matrix(cbind(1, data))
     Z <- mvrnorm(n=nrow(mX), rep(0,p), solve(Omega1))
     Y <- rnorm(n=nrow(mX), mX%*%b0+Z%*%zz, sd.y)
     V.Y <- var(mX%*%b0+Z%*%zz); V.e <- var(Y - mX%*%b0+Z%*%zz)
     
+    dd <- cbind(Y, data)
     L_tilda <- graph.laplacian(graph, normalized = T) %>% as.matrix
     
-    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda)) + delta*L_tilda)
+    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda)) + tau*L_tilda)
     if(include.network == "L") K_regL <- L_tilda
     
     Z <- scale(Z); ZL <- Z %*% K_regL
     if(rho == "median.pairwise") rho <- median(dist(Z))
     
-    K <- Gaussian_kernel(rho, ZL)
-    sc <- CC_Chisq_Score(K, Y, mX)
+    if(kernel == "G") K <- Gaussian_kernel(rho, ZL)
+    if(kernel == "L") K <- plyKern(ZL, pow = 1, rho = 0)
+    
+    dav_pval <- SKAT.c(H0.form, data = dd, K=K)$Qq
+    
   } else{
-    sc <- V.Y <- V.e <- NA
+    dav_pval <- V.Y <- V.e <- NA
   }
-  c(sc, edge_density1 = edge_density(graph),
+  c(pVal = dav_pval, edge_density1 = edge_density(graph),
     V.Y = V.Y, V.e = V.e,
     total_edge_n = total_edge_n, pos_def = pd)
 }
 
 ## A function built for power analysis on prebuilt data sets
-Perf_Score_SigNoise <- function(YZ, graph, include.network = "R",
-                                .delta, .X){
+Perf_Davie_SigNoise <- function(YZ, graph, H0.form, data, 
+                                include.network = "R", .tau){
   
   L_tilda <- graph.laplacian(graph, normalized = T) %>% as.matrix
   
-  if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda)) + .delta*L_tilda)
+  if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda)) + .tau*L_tilda)
   if(include.network == "L") K_regL <- L_tilda
   
   Z <- scale(YZ$Z); rho <- median(dist(Z))
   ZL <- Z %*% K_regL
-  
   K <- Gaussian_kernel(rho, ZL)
-  sc <- CC_Chisq_Score(K, YZ$Y, .X)
   
-  sc["pVal"]
+  dd <- cbind(Y = YZ$Y, data)
+  SKAT.c(H0.form, data = dd, K=K)$Qq
 }
 

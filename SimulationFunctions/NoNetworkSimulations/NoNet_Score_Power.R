@@ -20,18 +20,17 @@
 `%nin%` <- Negate(`%in%`)
 source('NoNetworkSimFunctions.R')
 
-nsim <- 1000  ## number of simulations
-nperm <- 1000 ## number of permutation for score test
+nsim <- 10000  ## number of simulations
 n <- 160 ## sample size
-mX <- matrix(1, n)
-b0 <- 0.2644 ## intercept term
+# mX <- matrix(1, n)
+# b0 <- 0.2644 ## intercept term
 sd.y <- 1.3688 ## standard deviation of Y
-delta <- 1 ## Tuning parameter for regularization kernel of normalized laplacian
+tau <- 1 ## Tuning parameter for regularization kernel of normalized laplacian
 set.seed(4)
-# X <- data.frame(X1 = factor(rep(0:1, each = n/2)),
-#                 X2 = runif(n, 0, 5))
-# b0 <- c(0.2644, 0.5, 0.25)
-# mX <- model.matrix(~X1+X2, data = X)
+X <- data.frame(X1 = rep(0:1, each = n/2),
+                X2 = runif(n, 0, 5))
+b0 <- c(0.2644, 0.5, 0.25)
+H0.form <- formula(Y~X1+X2)
 
 # Same Size ---------------------------------------------------------------
 
@@ -41,10 +40,11 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_ss_pw_15 <- plyr::ldply(graph.list, NoNet_Score_SameSize,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta) %>% 
+nonet_davie_ss_pw_15 <- plyr::ldply(graph.list, NoNet_Davie_SameSize, 
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_ss_pw_15$pos_def); unique(nonet_scor_ss_pw_15$Power)
+sum(nonet_davie_ss_pw_15$pos_def); unique(nonet_davie_ss_pw_15$Power)
 
 # * 30 --------------------------------------------------------------------
 p <- 30 ## size of network
@@ -52,10 +52,11 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_ss_pw_30 <- plyr::ldply(graph.list, NoNet_Score_SameSize,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta) %>% 
+nonet_davie_ss_pw_30 <- plyr::ldply(graph.list, NoNet_Davie_SameSize, 
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_ss_pw_30$pos_def); unique(nonet_scor_ss_pw_30$Power)
+sum(nonet_davie_ss_pw_30$pos_def); unique(nonet_davie_ss_pw_30$Power)
 
 # * 45 --------------------------------------------------------------------
 p <- 45 ## size of network
@@ -63,10 +64,11 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_ss_pw_45 <- plyr::ldply(graph.list, NoNet_Score_SameSize,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta) %>% 
+nonet_davie_ss_pw_45 <- plyr::ldply(graph.list, NoNet_Davie_SameSize, 
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_ss_pw_45$pos_def); unique(nonet_scor_ss_pw_45$Power)
+sum(nonet_davie_ss_pw_45$pos_def); unique(nonet_davie_ss_pw_45$Power)
 
 # Small Graph -------------------------------------------------------------
 
@@ -76,10 +78,11 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_sm_pw_15 <- plyr::ldply(graph.list, NoNet_Score_SmallGraph,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta) %>% 
+nonet_davie_sm_pw_15 <- plyr::ldply(graph.list, NoNet_Davie_SmallGraph,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_sm_pw_15$pos_def); unique(nonet_scor_sm_pw_15$Power)
+sum(nonet_davie_sm_pw_15$pos_def); unique(nonet_davie_sm_pw_15$Power)
 
 # * 30 --------------------------------------------------------------------
 p <- 30 ## size of network
@@ -87,10 +90,11 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_sm_pw_30 <- plyr::ldply(graph.list, NoNet_Score_SmallGraph,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta) %>% 
+nonet_davie_sm_pw_30 <- plyr::ldply(graph.list, NoNet_Davie_SmallGraph,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_sm_pw_30$pos_def); unique(nonet_scor_sm_pw_30$Power)
+sum(nonet_davie_sm_pw_30$pos_def); unique(nonet_davie_sm_pw_30$Power)
 
 # * 45 --------------------------------------------------------------------
 p <- 45 ## size of network
@@ -98,10 +102,11 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_sm_pw_45 <- plyr::ldply(graph.list, NoNet_Score_SmallGraph,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta) %>% 
+nonet_davie_sm_pw_45 <- plyr::ldply(graph.list, NoNet_Davie_SmallGraph,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_sm_pw_45$pos_def); unique(nonet_scor_sm_pw_45$Power)
+sum(nonet_davie_sm_pw_45$pos_def); unique(nonet_davie_sm_pw_45$Power)
 
 # Diff Density ------------------------------------------------------------
 
@@ -111,18 +116,20 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_dm_pw_15 <- plyr::ldply(graph.list, NoNet_Score_DiffDens,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta,
-                                  new.edge.prob=0.05) %>% 
+nonet_davie_dm_pw_15 <- plyr::ldply(graph.list, NoNet_Davie_DiffDens,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau,
+                                    new.edge.prob=0.05) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_dm_pw_15$pos_def); unique(nonet_scor_dm_pw_15$Power)
+sum(nonet_davie_dm_pw_15$pos_def); unique(nonet_davie_dm_pw_15$Power)
 
 ## ## ## ##
-nonet_scor_dh_pw_15 <- plyr::ldply(graph.list, NoNet_Score_DiffDens,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta,
-                                  new.edge.prob=0.15) %>% 
+nonet_davie_dh_pw_15 <- plyr::ldply(graph.list, NoNet_Davie_DiffDens,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau,
+                                    new.edge.prob=0.15) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_dh_pw_15$pos_def); unique(nonet_scor_dh_pw_15$Power)
+sum(nonet_davie_dh_pw_15$pos_def); unique(nonet_davie_dh_pw_15$Power)
 
 # * 30 --------------------------------------------------------------------
 p <- 30 ## size of network
@@ -130,18 +137,20 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_dm_pw_30 <- plyr::ldply(graph.list, NoNet_Score_DiffDens,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta,
-                                  new.edge.prob=0.05) %>% 
+nonet_davie_dm_pw_30 <- plyr::ldply(graph.list, NoNet_Davie_DiffDens,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau,
+                                    new.edge.prob=0.05) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_dm_pw_30$pos_def); unique(nonet_scor_dm_pw_30$Power)
+sum(nonet_davie_dm_pw_30$pos_def); unique(nonet_davie_dm_pw_30$Power)
 
 ## ## ## ##
-nonet_scor_dh_pw_30 <- plyr::ldply(graph.list, NoNet_Score_DiffDens,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta,
-                                  new.edge.prob=0.15) %>% 
+nonet_davie_dh_pw_30 <- plyr::ldply(graph.list, NoNet_Davie_DiffDens,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau,
+                                    new.edge.prob=0.15) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_dh_pw_30$pos_def); unique(nonet_scor_dh_pw_30$Power)
+sum(nonet_davie_dh_pw_30$pos_def); unique(nonet_davie_dh_pw_30$Power)
 
 # * 45 --------------------------------------------------------------------
 p <- 45 ## size of network
@@ -149,17 +158,19 @@ set.seed(2)
 graph.list <- lapply(1:nsim, function(x) sample_pa(n = p, directed = F))
 zz <- rep(0.1, p)
 
-nonet_scor_dm_pw_45 <- plyr::ldply(graph.list, NoNet_Score_DiffDens,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta,
-                                  new.edge.prob=0.05) %>% 
+nonet_davie_dm_pw_45 <- plyr::ldply(graph.list, NoNet_Davie_DiffDens,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau,
+                                    new.edge.prob=0.05) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_dm_pw_45$pos_def); unique(nonet_scor_dm_pw_45$Power)
+sum(nonet_davie_dm_pw_45$pos_def); unique(nonet_davie_dm_pw_45$Power)
 
 ## ## ## ##
-nonet_scor_dh_pw_45 <- plyr::ldply(graph.list, NoNet_Score_DiffDens,
-                                  mX=mX, b0=b0, sd.y=sd.y, zz=zz, delta=delta,
-                                  new.edge.prob=0.15) %>% 
+nonet_davie_dh_pw_45 <- plyr::ldply(graph.list, NoNet_Davie_DiffDens,
+                                    H0.form=H0.form, data = X, b0=b0,
+                                    sd.y=sd.y, zz=zz, tau=tau,
+                                    new.edge.prob=0.15) %>% 
   mutate(Power = sum(pVal < 0.05, na.rm = T)/n())
-sum(nonet_scor_dh_pw_45$pos_def); unique(nonet_scor_dh_pw_45$Power)
+sum(nonet_davie_dh_pw_45$pos_def); unique(nonet_davie_dh_pw_45$Power)
 
 

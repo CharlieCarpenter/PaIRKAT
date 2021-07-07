@@ -28,14 +28,16 @@ source('PerfectNetworkSimFunctions.R')
 source('NoNetworkSimFunctions.R')
 
 ## Parameters ----
-nsim <- 1000 ## number of simulations
-nperm <- 1000 ## number of permutation for score test
+nsim <- 10000  ## number of simulations
 n <- 160 ## sample size
-X <- matrix(1, n) ## Null design matrix for permutation test
-b0 <- 0.2644 ## intercept term
 sd.y <- 1.3688 ## standard deviation of Y
-delta <- 1 ## Tuning parameter for regularization kernel of normalized laplacian
-p <- 30 ## 30 metabolites for everything
+tau <- 1 ## Tuning parameter for regularization kernel of normalized laplacian
+p <- 30
+set.seed(4)
+X <- data.frame(X1 = rep(0:1, each = n/2),
+                X2 = runif(n, 0, 5))
+b0 <- c(0.2644, 0.5, 0.25)
+H0.form <- formula(Y~X1+X2)
 
 ## Generating Data ----
 
@@ -59,10 +61,11 @@ sig.noise.data <- plyr::llply(betas, function(b){
     ## Function in SimulationFuncitons.R
     Omega1 <- Danaher_pos_def(test)
     Z <- mvrnorm(n=n, rep(0,p), solve(Omega1))
-    model <- model.matrix(~ 1 , data.frame(Z))
-    Y <- rnorm(n, b0+Z%*%b, sd.y)
-    V.Y <- var(b0+Z%*%b)
-    V.e <- var(Y - (b0+Z%*%b))
+    Xm <- as.matrix(cbind(1, X))
+    
+    Y <- rnorm(n, Xm%*%b0+Z%*%b, sd.y)
+    V.Y <- var(Xm%*%b0+Z%*%b)
+    V.e <- var(Y - (Xm%*%b0+Z%*%b))
     
     list(Y = Y, Z = Z, V.Y = V.Y, V.e = V.e, Ratio = V.Y/V.e)
   })
@@ -79,9 +82,9 @@ set.seed(2)
 no.net.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(NoNet_Score_SigNoise, Y.Z, graph.list,
-         MoreArgs = list(.X = X))
-  }, .progress = "time")
+  mapply(NoNet_Davie_SigNoise, Y.Z, graph.list,
+         MoreArgs = list(H0.form = H0.form, data = X))
+}, .progress = "time")
 
 ## Complete Mismatch ----
 
@@ -89,16 +92,16 @@ set.seed(2)
 comp.mis.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Comp_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X))
-  }, .progress = "time")
+  mapply(Comp_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau))
+}, .progress = "time")
 
 comp.mis.sig.noise.L <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Comp_Score_SigNoise, Y.Z, graph.list, 
+  mapply(Comp_Davie_SigNoise, Y.Z, graph.list, 
          MoreArgs = list(include.network = "L",
-                         .delta = delta, .X = X))
+                         H0.form = H0.form, data = X, .tau = tau))
 }, .progress = "time")
 
 ## Partial Mismatch 10----
@@ -108,16 +111,16 @@ set.seed(2)
 part10.mis.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Part_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X, 
+  mapply(Part_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau,
                          .perc.perm = perc.perm))
-  }, .progress = "time")
+}, .progress = "time")
 
 part10.mis.sig.noise.L <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Part_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X, 
+  mapply(Part_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau,
                          include.network = "L",
                          .perc.perm = perc.perm))
 }, .progress = "time")
@@ -129,16 +132,16 @@ set.seed(2)
 part40.mis.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Part_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X,
+  mapply(Part_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau,
                          .perc.perm = perc.perm))
 }, .progress = "time")
 
 part40.mis.sig.noise.L <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Part_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X,
+  mapply(Part_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau,
                          include.network = "L",
                          .perc.perm = perc.perm))
 }, .progress = "time")
@@ -150,16 +153,16 @@ set.seed(2)
 part70.mis.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Part_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X,
+  mapply(Part_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau,
                          .perc.perm = perc.perm))
 }, .progress = "time")
 
 part70.mis.sig.noise.L <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Part_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X,
+  mapply(Part_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau,
                          include.network = "L",
                          .perc.perm = perc.perm))
 }, .progress = "time")
@@ -170,22 +173,69 @@ set.seed(2)
 perf.net.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Perf_Score_SigNoise, Y.Z, graph.list, 
-         MoreArgs = list(.delta = delta, .X = X))
-  }, .progress = "time")
+  mapply(Perf_Davie_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau))
+}, .progress = "time")
 
 perf.net.sig.noise.L <- plyr::ldply(sig.noise.data, function(sig.dat){
   
   Y.Z <- sig.dat[["Y.Z"]]
-  mapply(Perf_Score_SigNoise, Y.Z, graph.list, 
+  mapply(Perf_Davie_SigNoise, Y.Z, graph.list, 
          MoreArgs = list(include.network = "L",
-                         .delta = delta, .X = X))
+                         H0.form = H0.form, data = X, .tau = tau))
+}, .progress = "time")
+
+## Competitor Functions ----
+
+set.seed(2)
+pca.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
+  
+  Y.Z <- sig.dat[["Y.Z"]]
+  mapply(PCA_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, 
+                         .tau = tau, m=3))
+}, .progress = "time")
+
+pca.sig.noise.noNet <- plyr::ldply(sig.noise.data, function(sig.dat){
+  
+  Y.Z <- sig.dat[["Y.Z"]]
+  mapply(PCA_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(include.graph = F, m=3,
+                         H0.form = H0.form, data = X, .tau = tau))
+}, .progress = "time")
+
+set.seed(2)
+simes.sig.noise <- plyr::ldply(sig.noise.data, function(sig.dat){
+  
+  Y.Z <- sig.dat[["Y.Z"]]
+  mapply(Simes_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(H0.form = H0.form, data = X, .tau = tau))
+}, .progress = "time")
+
+simes.sig.noise.noNet <- plyr::ldply(sig.noise.data, function(sig.dat){
+  
+  Y.Z <- sig.dat[["Y.Z"]]
+  mapply(Simes_SigNoise, Y.Z, graph.list, 
+         MoreArgs = list(include.graph = F,
+                         H0.form = H0.form, data = X, .tau = tau))
 }, .progress = "time")
 
 ## Result ----
 
 st <- c("Perfect", "Partial Mismatch (10)", "Partial Mismatch (40)",
-        "Partial Mismatch (70)", "Complete Mismatch", "No Network")
+        "Partial Mismatch (70)", "Complete Mismatch", "No Network",
+        "Principal Components", "Univariate Simes")
+
+strs <- factor(c(rep(st[st != "No Network"],
+                     each = 2*length(sn)),
+                 rep("No Network", 
+                     length(sn))),
+               levels = st)
+
+tsts <- c(rep(c("RL", "L"), each = 10, 
+              times = 5),
+          rep(c("RL", "NN"), each = 10, times = 2),
+          rep("NN", 10))
 
 pow <- function(p) sum(p < 0.05)/length(p)
 
@@ -199,17 +249,15 @@ pp <- c(apply(perf.net.sig.noise, 1,  pow),
         apply(part70.mis.sig.noise.L, 1, pow ),
         apply(comp.mis.sig.noise, 1, pow ),
         apply(comp.mis.sig.noise.L, 1, pow ),
+        apply(pca.sig.noise, 1, pow ),
+        apply(pca.sig.noise.noNet, 1, pow ),
+        apply(simes.sig.noise, 1, pow ),
+        apply(simes.sig.noise.noNet, 1, pow ),
         apply(no.net.sig.noise, 1, pow ))
 
-sig.noise.result <- data.frame(Sig.Noise = rep(sn,11), 
-                               Structure = factor(c(rep(st[-length(st)],
-                                                        each = 2*length(sn)),
-                                                    rep(st[length(st)], 
-                                                        length(sn))),
-                                                  levels = st),
-                               Test = c(rep(c("RL", "L"), each = 10, 
-                                            times = (length(st)-1)),
-                                        rep("NN", 10)),
+sig.noise.result <- data.frame(Sig.Noise = rep(sn,length(pp)/length(sn)), 
+                               Structure = strs,
+                               Test = tsts,
                                Power = pp)
 
 ## Go to "Generating Data" above for "sn"

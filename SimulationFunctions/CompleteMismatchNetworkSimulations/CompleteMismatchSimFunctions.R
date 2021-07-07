@@ -18,12 +18,14 @@
 source("PaIRKAT/helpers.R")
 
 ## Forces no shared edges
-Comp_Score_SameSize <- function(graph, mX, b0, sd.y, zz, delta,
-                                  rho = "median.pairwise", include.network = "R"){
+Comp_Davie_SameSize <- function(graph, H0.form, data, 
+                                b0, sd.y, zz, tau, kernel = "G",
+                                rho = "median.pairwise", include.network = "R"){
   
   ## Converts a graph into an adjacency matrix
   A <- as.matrix( get.adjacency(graph) )
   p <- nrow(A)
+  mX <- as.matrix(cbind(1, data))
   
   ## Convert adjacency matrix into a "starter" precision matrix
   ## Adding transpose to make symmetric? (undirected?)
@@ -42,6 +44,7 @@ Comp_Score_SameSize <- function(graph, mX, b0, sd.y, zz, delta,
     Z <- mvrnorm(n=nrow(mX), rep(0,p), solve(Omega1))
     Y <- rnorm(n=nrow(mX), mX%*%b0+Z%*%zz, sd.y)
     V.Y <- var(mX%*%b0+Z%*%zz); V.e <- var(Y - mX%*%b0+Z%*%zz)
+    dd <- cbind(Y, data)
     
     ## making symmetric adjacency matrix? could result in 2s?
     total_edge_n <- sum(A==1)
@@ -51,28 +54,34 @@ Comp_Score_SameSize <- function(graph, mX, b0, sd.y, zz, delta,
       graph_from_adjacency_matrix(mode = "undirected") %>%
       graph.laplacian(normalized = T) %>% as.matrix
     
-    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_p)) + delta*L_tilda_p)
+    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_p)) + tau*L_tilda_p)
     if(include.network == "L") K_regL <- L_tilda_p
     
     Z <- scale(Z); ZL <- Z %*% K_regL
     
     if(rho == "median.pairwise") rho <- median(dist(Z))
     
-    K <- Gaussian_kernel(rho, ZL)
-    sc <- CC_Chisq_Score(K, Y, mX)
+    if(kernel == "G") K <- Gaussian_kernel(rho, ZL)
+    if(kernel == "L") K <- plyKern(ZL, pow = 1, rho = 0)
+    
+    pVal <- SKAT.c(H0.form, data = dd, K=K)$Qq
+    
   } else{
-    sc <- V.Y <- V.e <- NA
+    pVal <- V.Y <- V.e <- NA
   }
-  c(sc, edge_density1 = edge_density(graph),
+  c(pVal=pVal, edge_density1 = edge_density(graph),
     V.Y = V.Y, V.e = V.e,
     total_edge_n = total_edge_n, pos_def = pd)
 }
 
-Comp_Score_SmallGraph <- function(graph, mX, b0, sd.y, zz, delta,
-                                    rho = "median.pairwise", include.network = "R"){
+Comp_Davie_SmallGraph <- function(graph, H0.form, data, 
+                                  b0, sd.y, zz, tau, kernel = "G",
+                                  rho = "median.pairwise", include.network = "R"){
   ## Converts a graph into an adjacency matrix
   A <- as.matrix( get.adjacency(graph) )
   p <- nrow(A)
+  mX <- as.matrix(cbind(1, data))
+  
   ## Convert adjacency matrix into a "starter" precision matrix
   ## Adding transpose to make symmetric? (undirected?)
   test <- A + diag(p)
@@ -86,6 +95,7 @@ Comp_Score_SmallGraph <- function(graph, mX, b0, sd.y, zz, delta,
     Z <- mvrnorm(n=nrow(mX), rep(0,p), solve(Omega1))
     Y <- rnorm(n=nrow(mX), mX%*%b0+Z%*%zz, sd.y)
     V.Y <- var(mX%*%b0+Z%*%zz); V.e <- var(Y - mX%*%b0+Z%*%zz)
+    dd <- cbind(Y, data)
     
     ## making symmetric adjacency matrix? could result in 2s?
     total_edge_n <- sum(A==1)
@@ -106,7 +116,7 @@ Comp_Score_SmallGraph <- function(graph, mX, b0, sd.y, zz, delta,
     ## Redoing until we get a non-singular new matrix
     ## (fully connected graph)
     i <- 1
-    while(is.singular.matrix(diag(nrow(L_tilda_s)) + delta*L_tilda_s) &
+    while(is.singular.matrix(diag(nrow(L_tilda_s)) + tau*L_tilda_s) &
           i < 101){ ## only gonna try 50 new plots
       
       L_tilda_s <- nomatch(As, As_ng, nse) %>% ## Forcing no matching edges
@@ -116,44 +126,49 @@ Comp_Score_SmallGraph <- function(graph, mX, b0, sd.y, zz, delta,
       i <- i+1
     }
     
-    non.singular <- !is.singular.matrix(diag(nrow(L_tilda_s)) + delta*L_tilda_s)
+    non.singular <- !is.singular.matrix(diag(nrow(L_tilda_s)) + tau*L_tilda_s)
     if(non.singular){
       
-      if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_s)) + delta*L_tilda_s)
+      if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_s)) + tau*L_tilda_s)
       if(include.network == "L") K_regL <- L_tilda_s
       
       Zs <- scale(Zs); ZL <- Zs %*% K_regL
       
       if(rho == "median.pairwise") rho <- median(dist(Z))
       
-      K <- Gaussian_kernel(rho, ZL)
-      sc <- CC_Chisq_Score(K, Y, mX)
-    } else sc <- V.Y <- V.e <- NA
+      if(kernel == "G") K <- Gaussian_kernel(rho, ZL)
+      if(kernel == "L") K <- plyKern(ZL, pow = 1, rho = 0)
+      
+      pVal <- SKAT.c(H0.form, data = dd, K=K)$Qq
+      
+    } else pVal <- V.Y <- V.e <- NA
     
   }else{
-    sc <- V.Y <- V.e <- NA
+    pVal <- V.Y <- V.e <- NA
   }
-  c(sc, edge_density1 = edge_density(graph),
+  c(pVal=pVal, edge_density1 = edge_density(graph),
     V.Y = V.Y, V.e = V.e,
     total_edge_n = total_edge_n, pos_def = pd)
 }
 
-Comp_Score_DiffDens <- function(graph, mX, b0, sd.y, zz, delta, new.edge.prob,
+Comp_Davie_DiffDens <- function(graph, H0.form, data,
+                                b0, sd.y, zz, tau, kernel = "G",
+                                new.edge.prob,
                                 rho = "median.pairwise", include.network = "R"){
   
   edge_density1 <- edge_density(graph)
+  mX <- as.matrix(cbind(1, data))
   
   ## Converts a graph into an adjacency matrix
   A <- as.matrix( get.adjacency(graph) )
-  A <- increase.edge.density(A, edge.prob = new.edge.prob)
+  A_d <- increase.edge.density(A, edge.prob = new.edge.prob)
   ## Convert adjacency matrix into a "starter" precision matrix
   ## Adding transpose to make symmetric? (undirected?)
-  test <- A + diag(p)
+  test <- A_d + diag(p)
   
   ## New adjacency matrix from new sample graph
   gg2 <- sample_pa(p, directed = F)
-  A_p <- as.matrix( get.adjacency(gg2) ) %>% 
-    increase.edge.density(edge.prob = new.edge.prob)
+  A_p <- as.matrix( get.adjacency(gg2) )
   
   ## Make test positive using approach of Danaher et al (2014)
   ## Function in SimulationFuncitons.R
@@ -164,36 +179,40 @@ Comp_Score_DiffDens <- function(graph, mX, b0, sd.y, zz, delta, new.edge.prob,
     Z <- mvrnorm(n=nrow(mX), rep(0,p), solve(Omega1))
     Y <- rnorm(n=nrow(mX), mX%*%b0+Z%*%zz, sd.y)
     V.Y <- var(mX%*%b0+Z%*%zz); V.e <- var(Y - mX%*%b0+Z%*%zz)
+    dd <- cbind(Y, data)
     
     ## making symmetric adjacency matrix? could result in 2s?
     total_edge_n <- sum(A==1)
     
-    nse <- count_shared_edges(A, A_p)
+    nse <- count_shared_edges(A_d, A_p)
     
     g_p <- nomatch(A, A_p, nse) %>% ## Forcing no match
       graph_from_adjacency_matrix(mode = "undirected") 
     
     L_tilda_p <- graph.laplacian(g_p, normalized = T) %>% as.matrix
     
-    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_p)) + delta*L_tilda_p)
+    if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_p)) + tau*L_tilda_p)
     if(include.network == "L") K_regL <- L_tilda_p
     
     Z <- scale(Z); ZL <- Z %*% K_regL
-    
     if(rho == "median.pairwise") rho <- median(dist(Z))
     
-    K <- Gaussian_kernel(rho, ZL)
-    sc <- CC_Chisq_Score(K, Y, mX)
+    if(kernel == "G") K <- Gaussian_kernel(rho, ZL)
+    if(kernel == "L") K <- plyKern(ZL, pow = 1, rho = 0)
+    
+    pVal <- SKAT.c(H0.form, data = dd, K=K)$Qq
+    
   } else{
-    sc <- V.Y <- V.e <- NA
+    pVal <- V.Y <- V.e <- NA
   }
-  c(sc, edge_density1 = edge_density(graph),
+  c(pVal=pVal, edge_density1 = edge_density(graph),
     V.Y = V.Y, V.e = V.e,
     total_edge_n = total_edge_n, pos_def = pd)
 }
 
 ## A function built for power analysis on prebuilt data sets
-Comp_Score_SigNoise <- function(YZ, graph, include.network = "R", .X, .delta){
+Comp_Davie_SigNoise <- function(YZ, graph, H0.form, data, 
+                                include.network = "R", .tau){
   
   A <- as.matrix(get.adjacency(graph))
   gg2 <- sample_pa(ncol(A), directed = F)
@@ -203,17 +222,16 @@ Comp_Score_SigNoise <- function(YZ, graph, include.network = "R", .X, .delta){
   L_tilda_p <- nomatch(A, A_p, nse) %>% ## Forcing no match
     graph_from_adjacency_matrix(mode = "undirected") %>%
     graph.laplacian(normalized = T) %>% as.matrix
-
-  if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_p)) + .delta*L_tilda_p)
+  
+  if(include.network == "R") K_regL <- solve(diag(nrow(L_tilda_p)) + .tau*L_tilda_p)
   if(include.network == "L") K_regL <- L_tilda_p
   
   Z <- scale(YZ$Z); rho <- median(dist(Z))
   Z <- Z %*% K_regL
-  
   K <- Gaussian_kernel(rho, Z)
-  sc <- CC_Chisq_Score(K, YZ$Y, .X)
   
-  sc["pVal"]
+  dd <- cbind(Y = YZ$Y, data)
+  SKAT.c(H0.form, data = dd, K=K)$Qq
 }
 
 
