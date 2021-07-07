@@ -166,6 +166,11 @@ Gaussian_kernel <- function(rho, Z){
   exp(-(1/rho)*as.matrix(dist(Z, method = "euclidean", upper = T)^2))
 }
 
+## Linear and poly Kern
+plyKern <- function(Z, pow, rho=0){
+  (Z%*%t(Z) + rho)^pow
+}
+
 ## Calculates scale param "ka" (kappa) and df "nu"
 scaleChi <- function(P, K){ 
   ## Pieces of Itilde
@@ -181,44 +186,6 @@ scaleChi <- function(P, K){
   
   ## Original paper (Liu, Lin, Gosh 2008)
   ## has Iss = tr(P^2)/2 but P is idempotent
-}
-
-## Scores for Continuous and Dichotomous outcomes
-kernelScoreC <- function(K, Y, X){
-  ## Projection matrix
-  P <- diag(nrow(X)) - X %*% (solve(t(X)%*%X) %*% t(X))
-  R <- P%*%Y
-  
-  s2 <- sum(R^2)/(nrow(X) - ncol(X)) ## MSE = SS/rdf
-  sc <- ( t(R)%*%K%*%R )/(2*s2)
-  s_chi <- scaleChi(P, K)
-  
-  Q <- sc/s_chi['ka'] ## Scaled chisq stat
-  pVal <- pchisq(Q, df = s_chi['nu'], lower.tail = FALSE)
-  
-  c(Q = Q, pVal = pVal, s_chi['ka'], s_chi['nu'])
-}
-
-kernelScoreD <- function(K, Y, X){
-  ## Projection matrix
-  m0 <- glm.fit(x=X, y=Y, family = binomial())$fitted.values
-  D <- diag(m0*(1-m0))
-
-  P <- t(X) %*% D
-  P <- solve(t(X) %*% D %*% X) %*% P
-  P <- D - (D %*% X %*% P)
-  R <- Y-m0
-  
-  sc <- ( t(R)%*%K%*%R )/2
-  
-  s_chi <- scaleChi(P, K)
-  Q <- sc/s_chi['ka'] ## Scaled chisq stat
-  pVal <- pchisq(Q, df = s_chi['nu'], lower.tail = FALSE)
-
-  out <- c(Q = Q, pVal = pVal, s_chi['ka'], s_chi['nu'])
-  print(out)
-  print("Reached end of Kernel D")
-  out
 }
 
 ## Trace of a matrix
@@ -237,20 +204,98 @@ Danaher_pos_def <- function(m, cc = 3.4, dd = 0.95){
   AA
 }
 
-## 
-CC_Chisq_Score <- function(K, Y, mX, out.type = "C"){
-  ## Projection matrix
-  P <- diag(nrow(mX)) - mX%*%solve(t(mX)%*%mX)%*%t(mX) 
-  R <- P%*%Y ## Residual
+# Pieces for davies -------------------------------------------------
+
+#Compute the tail probability of 1-DF chi-square mixtures
+KAT.pval <- function(Q.all, lambda, acc=1e-9,lim=1e6){
+  pval = rep(0, length(Q.all))
+  i1 = which(is.finite(Q.all))
+  for(i in i1){
+    tmp <- davies(Q.all[i],lambda,acc=acc,lim=lim)
+    pval[i] = tmp$Qq
+    
+    if(tmp$ifault>0) warning(paste("ifault =", tmp$ifault))
+    # pval[i] = Sadd.pval(Q.all[i],lambda)
+  }
+  return(pval)
+}
+
+SKAT.c <- function(formula.H0, data = NULL, K, adjusted = T,
+                   acc = 0.00001, lim = 10000, tol = 1e-10) {
   
-  s2 <- sum(R^2)/(nrow(mX) - ncol(mX)) ## MSE = SS/rdf
-  sc <- ( t(R)%*%K%*%R )/(2*s2)
-  s_chi <- scaleChi(P, K)
+  m0 <- lm(formula.H0, data)
+  mX <- model.matrix(formula.H0, data)
   
-  Q <- sc/s_chi['ka'] ## Scaled chisq stat
-  pVal <- pchisq(Q, df = s_chi['nu'], lower.tail = FALSE)
+  res <- resid(m0); df <- nrow(mX)-ncol(mX)
+  s2 <- sum(res^2)/df
   
-  c(Q = Q, pVal = pVal, s_chi['ka'], s_chi['nu'])
+  P0  <- diag(nrow(mX)) - mX %*% (solve(t(mX) %*% mX) %*% t(mX))
+  PKP <- P0 %*% K %*% P0
+  
+  if(adjusted){
+    q <- as.numeric(res %*% K %*% res /(s2*df))
+    ee <- eigen(PKP - q * P0, symmetric = T)
+    q <- 0 ## Redefining for adjusted stat
+  } else{
+    q <- as.numeric(res %*% K %*% res / s2)
+    ee <- eigen(PKP, symmetric = T) 
+  }
+  
+  lambda <- ee$values[abs(ee$values) >= tol]
+  dav <- davies(q, lambda = sort(lambda, decreasing=T),
+                acc = acc, lim = lim)
+  
+  c(dav, Q.adj=q)
+}
+
+SKAT.b <- function(formula.H0, data = NULL, K, adjusted = F,
+                   acc = 0.00001, lim = 10000, tol = 1e-10) {
+  
+  X1 <- model.matrix(formula.H0, data)
+  lhs <- formula.H0[[2]]
+  y <- eval(lhs, data)
+  
+  y <- factor(y)
+  
+  
+  if (nlevels(y) != 2) {
+    stop('The phenotype is not binary!\n')
+  } else {
+    y <- as.numeric(y) - 1
+  }
+  
+  glmfit <- glm(y ~ X1 - 1, family = binomial)
+  
+  betas <- glmfit$coef
+  mu  <- glmfit$fitted.values
+  eta <- glmfit$linear.predictors
+  res.wk <- glmfit$residuals
+  res <- y - mu
+  
+  w   <- mu * (1-mu)
+  sqrtw <- sqrt(w)
+  
+  adj <- sum((sqrtw * res.wk)^2) 
+  
+  DX12 <- sqrtw * X1
+  
+  qrX <- qr(DX12)
+  Q <- qr.Q(qrX)
+  Q <- Q[, 1:qrX$rank, drop=FALSE]
+  
+  P0 <- diag(nrow(X1)) - Q %*% t(Q)
+  
+  DKD <- tcrossprod(sqrtw) * K
+  tQK <- t(Q) %*% DKD
+  QtQK <- Q %*% tQK 
+  PKP <- DKD - QtQK - t(QtQK) + Q %*% (tQK %*% Q) %*% t(Q)
+  q <- as.numeric(res %*% K %*% res) / adj
+  ee <- eigen(PKP - q * P0, symmetric = T, only.values=T)  		
+  lambda <- ee$values[abs(ee$values) >= tol]
+  
+  p.value <- KAT.pval(0, lambda=sort(lambda, decreasing = T), acc = acc, lim = lim) 
+  
+  return(list(p.value=p.value, Q.adj = q))
 }
 
 
