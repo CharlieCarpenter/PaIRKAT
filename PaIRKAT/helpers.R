@@ -132,7 +132,7 @@ getNetwork <- function(pathId, .comps, .metab, .pathDat,
 ########## Model Functions #############
 
 ## Kernel test including network information through laplacian
-PaIRKAT <- function(G, out.type, Y, model, tau = 1, metab){
+PaIRKAT <- function(G, H0.form, data, out.type, tau = 1, metab){
   
   varnames <- V(G)$label
   ZZ <- scale(metab[, varnames[varnames %in% names(metab)]] )
@@ -144,11 +144,11 @@ PaIRKAT <- function(G, out.type, Y, model, tau = 1, metab){
   K <- Gaussian_kernel(rho, Z)
   
   if(out.type == "C"){
-    pp <- kernelScoreC(K, Y=as.matrix(Y), X=model)
+    pp <- SKAT.c(H0.form, data = data, K=K)
   }
   
   if(out.type == "D"){
-    pp <- kernelScoreD(K, Y=as.matrix(Y), X=model)
+    pp <- SKAT.b(H0.form, data = data, K=K)
   }
   
   pp
@@ -248,7 +248,7 @@ SKAT.c <- function(formula.H0, data = NULL, K, adjusted = T,
   c(dav, Q.adj=q)
 }
 
-SKAT.b <- function(formula.H0, data = NULL, K, adjusted = F,
+SKAT.b <- function(formula.H0, data = NULL, K, adjusted = T,
                    acc = 0.00001, lim = 10000, tol = 1e-10) {
   
   X1 <- model.matrix(formula.H0, data)
